@@ -1,6 +1,6 @@
 This is the authors version of :
 
-L. Trudeau, S. Coulombe and C. Desrosiers, "[Sub-partition reuse for fast optimal motion estimation in HEVC successive elimination algorithms](http://luctrudeau.github.io/papers/AdaptiveSearchOrderingInSEA.pdf)" 2016 IEEE International Conference on Image Processing (ICIP), Phoenix, AZ, USA, 2016, pp. 2003-2007. DOI: [10.1109/ICIP.2016.7532709](http://dx.doi.org/10.1109/ICIP.2016.7532709)
+L. Trudeau, S. Coulombe and C. Desrosiers, "[Sub-partition reuse for fast optimal motion estimation in HEVC successive elimination algorithms](http://luctrudeau.github.io/papers/AdaptiveSearchOrderingForSEA.pdf)" 2016 IEEE International Conference on Image Processing (ICIP), Phoenix, AZ, USA, 2016, pp. 2003-2007. DOI: [10.1109/ICIP.2016.7532709](http://dx.doi.org/10.1109/ICIP.2016.7532709)
 
 ##BibTeX
 ```
