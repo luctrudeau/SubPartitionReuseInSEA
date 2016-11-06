@@ -1,0 +1,902 @@
+\documentclass{article}
+\usepackage{spconf}
+\usepackage[T1]{fontenc} 
+\usepackage[utf8]{inputenc}
+\usepackage{cleveref}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{multirow}
+\usepackage{subcaption}
+
+\hyphenpenalty=5000
+\newcommand{\eq}[1]{Eq.~\eqref{#1}}
+\crefname{figure}{Fig.}{Figures}
+\setlength{\parskip}{0cm}
+\setlength{\parindent}{1em}
+
+\setlength{\tabcolsep}{0.42cm}
+
+
+\usepackage{paralist}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MATH
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\DeclarePairedDelimiter\abs{\lvert}{\rvert}%
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+
+\newcommand{\sumsum}{
+    \sum_{m = 0}^{M_s-1}\sum_{n = 0}^{N_s-1}
+}
+\newcommand{\sad}{
+    \sumsum{\abs*{B_{s,p}(m,n) - C_{s,p,x,y}(m,n)}}
+}
+
+\newcommand{\ads}{
+    \abs*{\sumsum{B_{s,p}(m,n)} - \sumsum{C_{s,p,x,y}(m,n)}}
+}
+
+
+\newcommand{\minsad}{
+    \text{SAD}^*
+}
+
+\newcommand{\lowersad}{
+    \text{SAD}^\Omega
+}
+
+\DeclareMathOperator*{\argmin}{\arg\!\min}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% GLOSSARIES
+\usepackage[acronym]{glossaries}
+\loadglsentries{acronyms}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% BIBLATEX
+%\usepackage[backend=biber,style=ieee]{biblatex}
+%\appto{\bibsetup}{\raggedright}
+%\bibliography{biblio.bib}
+%\renewcommand*{\bibfont}{\small}
+%\renewbibmacro*{bbx:savehash}{}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TIKZ
+\usepackage{color}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.10} 
+\usepackage{tkz-euclide}
+\usepackage[framemethod=TikZ]{mdframed}
+\usetikzlibrary{matrix}
+
+\pgfplotstableset{ color cells/.style={
+        col sep=comma,
+        string type,
+        postproc cell content/.code={%
+                \pgfkeysalso{@cell content=\rule{0cm}{2.4ex}\cellcolor{black!##1}\pgfmathtruncatemacro\number{##1}\ifnum\number>20\color{white}\fi##1}%
+                },
+        columns/x/.style={
+            column name={},
+            postproc cell content/.code={}
+        }
+    }
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% COMMENTS
+\usepackage[textwidth=3.7cm]{todonotes}
+\newcounter{LTComment}
+\newcommand{\LT}[2][]{%
+% initials of the author (optional) + note in the margin
+\refstepcounter{LTComment}%
+{%
+\todo[inline, color={blue!10!white},size=\small]{%
+\textbf{[LT\theLTComment]:}~#2}%
+}}
+\newcounter{SCComment}
+\newcommand{\SC}[2][]{%
+% initials of the author (optional) + note in the margin
+\refstepcounter{SCComment}%
+{%
+\todo[inline, color={green!40!black},size=\small]{%
+\color{white}\textbf{[SC\theSCComment]:}~#2}%
+}}
+\newcounter{CDComment}
+\newcommand{\CD}[2][]{%
+% initials of the author (optional) + note in the margin
+\refstepcounter{CDComment}%
+{%
+\todo[inline, color={red!10!white},size=\small]{%
+\textbf{[CD\theCDComment]:}~#2}%
+}}
+\newcounter{JFComment}
+\newcommand{\JFF}[2][]{%
+% initials of the author (optional) + note in the margin
+\refstepcounter{JFComment}%
+{%
+\todo[inline, color={rgb:red,1;green,2;blue,3},size=\small]{%
+\color{white}\textbf{[JFF\theJFComment]:}~#2}%
+}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TITLE
+%\title{Complexity reduction for successive elimination algorithms\\ based on motion estimation information reuse from \\ rectangular to square prediction units in HEVC}
+%\title{Fast successive elimination algorithm based on sub-partitions motion estimation information reuse  applied to HEVC}
+%\title{Improved rate-constraint based on sub-partitions motion estimation information reuse  applied to HEVC}
+%\title{Sub-partition reuse for fast optimal motion estimation in HEVC successive elimination algorithms}
+\title{Sub-partition reuse for fast optimal motion estimation \\ in  HEVC successive elimination algorithms}
+\name{Luc Trudeau, Stéphane Coulombe, Christian Desrosiers\thanks{This work was funded by Vantrix Corporation and by the Natural Sciences and Engineering Research Council of Canada under the Collaborative Research and Development Program (NSERC-CRD 428942-11). Computations were made on the Guillimin from McGill University, managed by Calcul Québec and Compute Canada. The operation of this supercomputer is funded by the Canada Foundation for Innovation (CFI), NanoQuébec, RMGA and the Fonds de recherche du Québec - Nature et technologies (FRQ-NT). Emails: \{luc.trudeau, stephane.coulombe, christian.desrosiers\}@etsmtl.ca
+}}
+\address{Department of Software and IT Engineering\\ École de technologie supérieure, Université du Québec\\ Montreal, Quebec, Canada}
+
+\begin{document}
+
+% OUTLINE
+%   INTRO
+%       The solution space of motion estimation is so big, that performing an exhaustive search cannot be accomplished in practical applications.
+%       Optimal does not require exhaustive
+%       Prior Work
+%       Contributions
+%   SUCCESSIVE ELIMINATION
+%       Shapes and Math notation
+%       SAD and ADS
+%       Triangle inequality
+%       Filtering criterion and rate-constraint
+%   INFORMATION REUSE BETWEEN SHAPES
+%       Shape ordering considerations
+%       MinSAD lowerbound
+%           Remains optimal when filtering criterion is applied
+%   IMPROVED EARLY TERMINATION
+%       Describe increasing rates rule
+%       Lower bound to improve early
+%   RESULTS
+%       Compare with HM
+%       Compare with SEA
+%       Proposed solution vs HM (speed up and SAD reduction) in common test conditions
+%       Compared to ICIP2015 proposition (optimal SAD)
+%   CONCLUSION
+
+\maketitle
+
+\begin{abstract}
+In the context of \gls{me} for video coding, the \gls{rcsea} safely eliminates candidate motion vectors while preserving the optimal candidate chosen by the \gls{bma}. This paper describes a technique for reusing \gls{me} information from rectangular to square prediction units in order to reduce the search area without altering the optimal candidate chosen by the \gls{bma}. Our experiments show that, on average, when this optimization is combined with the \gls{rcsea} in the HEVC HM encoder reference software, the number of \gls{sad} operations drops by $94.9\%$, resulting in a speedup of 6.13x in full search mode. Although identical coding decisions cannot be guaranteed when multiple optimal solutions exist, the average impact on BD-PSNR is 0.0002~dB.
+\end{abstract}
+
+\begin{keywords}
+\small{Successive elimination algorithms, Block matching algorithm, Motion estimation, HEVC.}
+\end{keywords}
+
+\glsresetall
+
+%==============================================================
+\vspace{-0.5em}
+\section{Introduction}
+\vspace{-0.5em}
+To improve the compression gains provided by predictive coding, video coding standards, such as H.264/MPEG-4~\gls{avc}~\cite{H264} and H.265/\gls{hevc}~\cite{HEVC}, have considerably increased the domain of the \gls{me} function. By domain, we refer to the range of values that can be used when performing \gls{mc}. Consequently, these standards allow the use of \gls{mc} for more block sizes and over more reference frames. In addition, the recommended size of the search area used by \gls{me} algorithms has also increased~\cite{McCann2014}. The magnitude of this domain, combined with the computational complexity of evaluating candidates, forces modern encoders to use suboptimal algorithms, such as the popular zonal approaches~\cite{Tourapis2000, Tourapis2002}.
+
+In~\cite{Li1995}, Li and Salari proposed the \gls{sea}, an algorithm which considerably reduces the burden of \gls{me}. First, it computes the \gls{ads} over the entire domain. Then, by exploiting the triangle inequality between the \gls{ads} and the \gls{sad}, it eliminates candidates by transitivity, thus avoiding costly \gls{sad} operations where possible. In contrast, we refer to the subset of filtered candidates as the codomain of the \gls{me} function. Performance-wise, the appeal of the \gls{ads} is due to the fact that its sums can be stored and reused between blocks and search areas.
+
+Coban and Mersereau proposed the \gls{rcsea} in~\cite{Coban1998}. Implementations of this algorithm have been presented for H.264~\cite{Toivonen2004, Yang2004}. To our knowledge, except for our previous works presented in~\cite{Trud14} and \cite{Trud15}, no work has been published so far on \gls{rcsea} for HEVC.
+
+As shown in our previous work~\cite{Trud14}, if the candidates are ordered by rate, the rate constraint can shrink the search area, thus reducing the codomain to parts of the search area that satisfy the rate constraint. In~\cite{Trud15}, we showed that the smallest codomain is obtained by sorting the candidates by \gls{ads} value. In this work, we reduce the codomain of square \glspl{pu} even more, by reusing information from previous \gls{me} operations performed over rectangular \glspl{pu}.
+
+The original contributions of this work are as follows:
+\begin{compactitem}
+\item We present a new technique for reusing motion estimation information from rectangular \glspl{pu} inside square \glspl{pu} (\cref{sec:InfoReuse}).
+\item We integrate this new information into the early termination mechanism of \gls{rcsea} that we proposed in~\cite{Trud14} (\cref{sec:LowerBound}).
+\end{compactitem}
+To facilitate the understanding of our contributions, we present an overview of \gls{sea} and \gls{rcsea} in \cref{sec:SEA}. We experimentally confirm that this new optimization significantly reduces the number of \gls{sad} operations performed while preserving the optimal candidate chosen by the \gls{bma} (\cref{sec:Results}).
+
+
+%==============================================================
+\section{Successive Elimination Algorithm}
+\label{sec:SEA}
+\vspace{-0.5em}
+
+In this section, we give a brief overview of the SEA’s transitive elimination phase in a rate-constrained context. 
+
+Let $s \in \{\mathbb{S}, \mathbb{V}, \mathbb{H}\}$ be the partitioning shape of a \gls{pu}, which can either be a square ($\mathbb{S}$), a vertical rectangle ($\mathbb{V}$) or a horizontal rectangle ($\mathbb{H}$), as shown in \Cref{fig:CUShapes}. A square \gls{pu} contains one partition referred to as $0$, whereas rectangular \glspl{pu} have two partitions referred to as $0$ and $1$.
+\begin{figure}[htb]
+\centering
+\input{figCUShapes.tex}
+\vspace{-1em}
+\caption{\small{The partitioning shapes of a \gls{pu}, a square ($\mathbb{S}$), a vertical rectangle ($\mathbb{V}$) and a horizontal rectangle ($\mathbb{H}$). The first partition is $0$ and if a second partition exists, it is indexed as $1$.}}
+\label{fig:CUShapes}
+\end{figure}
+
+Let $B_{s,p}$ be the block of shape $s$ at partition $p$ in a \gls{pu}. $B_{s,p}$ is made up of $M_s~\times~N_s$ pixels. These pixels are accessed as $B_{s,p}(m,n)$. Let $C_{s,p}$ be the search area related to $B_{s,p}$. Let $C_{s,p,x,y}$ define the candidate block corresponding to the \gls{mvd} $(x,y)$ measured against the \gls{mvp} of $B_{s,p}$. Let $\mathcal{S}_{s,p}$ be the set of all $(x,y)$ in the search area of $C_{s,p}$ which is centered at the position defined by the \gls{mvp} of $B_{s,p}$.
+
+The \gls{sad} evaluates the error between $B_{s,p}$ and a candidate $C_{s,p,x,y}$ as follows:
+\begin{equation}
+\small{
+\text{SAD}(s,p,x,y) = \sad\:.
+}
+\end{equation}
+
+When performing \gls{bm}, the cost function being minimized is defined as follows:
+\begin{equation}
+\small{
+\text{J}(s,p,x,y) = \text{SAD}(s,p,x,y) + \lambda R(x,y)\:,
+}
+\end{equation}
+where $\lambda$ is the recommended HEVC Lagrange multiplier~\cite{McCann2014}, and $R(x,y)$ returns the number of bits required to encode the $(x,y)$ \gls{mv}. Another recommendation of~\cite{McCann2014}, is to use signed exponential Golomb codes to quickly estimate the number of bits required to encode a \gls{mv} during \gls{bma}.
+
+The contribution of the \gls{sea} to \gls{bm} is that it filters out candidates that cannot produce better results than the current best~\cite{Li1995, Coban1998}. This is achieved by exploiting the triangle inequality between the \gls{sad} and the \gls{ads}:
+{\small
+\begin{align}
+\ads \nonumber\\
+\leqslant \sumsum{\abs*{B_{s,p}(m,n) - C_{s,p,x,y}(m,n)}}\:.
+\end{align}
+}%
+
+This inequality can be used when successively evaluating \gls{mv} candidates to perform transitive elimination, as in:
+{\small
+\begin{align}
+\text{SAD}(s,p,\hat{x},\hat{y}) + \lambda R(\hat{x},\hat{y}) & \leqslant \text{ADS}(s,p,x,y) + \lambda R(x,y) \nonumber\\ & \leqslant \text{SAD}(s,p,x,y) + \lambda R(x,y)\:,
+\label{eq:CandidateElimination2}
+\end{align}
+}%
+where $(\hat{x},\hat{y})$ is the position of the current best candidate.
+
+In other words, for a given candidate, at position $(x,y)$, if the rate-constrained \gls{ads} value of that candidate is superior to the rate-constrained \gls{sad} of the current best candidate, then it is impossible for the rate-constrained \gls{sad} value of that candidate to be smaller than that of the current best candidate. Given the rate-constrained \gls{sad} value of one candidate in the search area, all candidates with a rate-constrained \gls{ads} value greater than the given rate-constrained \gls{sad} can safely be eliminated without altering the optimal candidate chosen by the \gls{bma}. This outlines the \gls{rcsea} as proposed in~\cite{Coban1998}.
+
+
+%==============================================================
+\section{Information reuse between PU shapes}
+\label{sec:InfoReuse}
+\vspace{-0.5em}
+
+Conventional approaches evaluate \gls{pu} partitioning shapes in the order $\mathbb{S} \rightarrow \mathbb{V} \rightarrow \mathbb{H}$, as described in the mode decision section of~\cite{McCann2014}. This ordering is well-suited for suboptimal algorithms, since decisions related to skipping partitioning shapes can be taken early on. However, in the context of an optimal algorithm, this ordering offers no advantage. More favorable orderings are $\mathbb{V} \rightarrow \mathbb{H} \rightarrow \mathbb{S}$ and $\mathbb{H} \rightarrow \mathbb{V} \rightarrow \mathbb{S}$ as they allow the reuse of computed values from rectangular partitions in the square partition.
+
+Information reuse between partitioning shapes can be performed as follows:
+\begin{equation}
+\small{
+ \text{SAD}(\mathbb{S},0,x,y) = \text{SAD}(\mathbb{V},0,x,y) + \text{SAD}(\mathbb{V},1,x,y)\:.
+}
+\end{equation}
+This also applies for $\mathbb{H}$; the previously computed \glspl{sad} of both rectangular partitions at a given position can be summed up to obtain the \gls{sad} of the square \gls{pu} at that position. This is valid under a \textit{constant search area} assumption:  $\mathcal{S}_{\mathbb{V},0} = \mathcal{S}_{\mathbb{V},1} = \mathcal{S}_{\mathbb{S},0}$ and $\mathcal{S}_{\mathbb{H},0} = \mathcal{S}_{\mathbb{H},1} = \mathcal{S}_{\mathbb{S},0}$.
+
+The main limiting factor of this approach is the \gls{sea}. As previously explained, the \gls{sea} filters out many \gls{sad} operations, which are therefore not available for reuse. Although it is possible to manage missing \glspl{sad}, the high percentage of \gls{sad} operations filtered out by the \gls{sea}, combined with the management overhead, makes such an approach impractical. 
+
+One useful piece of information that is unaffected by the \gls{sea} is the \gls{minsad}, defined as:
+\begin{equation}
+\small{
+\minsad(s,p) = \min_{(x,y) \in \mathcal{S}_{s,p}} \text{SAD}(s,p,x,y) \:.
+}
+\end{equation}
+This information is useful because summing up the \glspl{minsad} of the partitions of $\mathbb{V}$ or $\mathbb{H}$ yields a lower bound for the \gls{minsad} of $\mathbb{S}$:
+\begin{equation}
+\small{
+\minsad(\mathbb{S},0) \geqslant \minsad(\mathbb{V},0) + \minsad(\mathbb{V},1)\:.
+}
+\label{eq:MinV}
+\end{equation}
+\begin{equation}
+\small{
+\minsad(\mathbb{S},0) \geqslant \minsad(\mathbb{H},0) + \minsad(\mathbb{H},1)\:.
+}
+\label{eq:MinH}
+\end{equation}
+These inequalities are valid under the \textit{constant search area} assumption.
+
+Let $\lowersad$ be the lower bound of the $\minsad(\mathbb{S},0)$, such that:
+{\small
+\begin{align}
+    \lowersad =
+    \max \big(
+        & \minsad(\mathbb{V},0) + \minsad(\mathbb{V},1), \nonumber \\
+        & \minsad(\mathbb{H},0) + \minsad(\mathbb{H},1)
+    \big).
+\end{align}
+}%
+
+By using the highest lower bound, we have a tighter lower bound to the $\minsad(\mathbb{S},0)$. Per the definition of $\lowersad$ and using \eq{eq:MinV} and \eq{eq:MinH}:
+\begin{equation}
+\small{
+\lowersad \leqslant \minsad(\mathbb{S},0) \leqslant \text{SAD}(\mathbb{S},0,x,y),~\forall~ (x,y) \in  \mathcal{S}_{\mathbb{S},0} \:.
+}
+\label{eq:LowerBound}
+\end{equation}
+
+
+%==============================================================
+\section{Improved early termination for $\mathbb{S}$}
+\label{sec:LowerBound}
+\vspace{-0.5em}
+
+The increasing rate rule, presented in \cite{Trud14}, states that \gls{bm} candidates shall be ordered by increasing rate ($R(x,y)$). This ordering allows for early termination of the \gls{rcsea}. It follows from \eq{eq:CandidateElimination2}, and since $\text{SAD}(s,p,x,y)\geqslant 0$, that early termination can occur when
+\begin{equation}
+\small{
+    R(x,y) \geqslant \frac{\text{SAD}(s,p,\hat{x},\hat{y})}{\lambda} + R(\hat{x},\hat{y}) \:.
+}
+\label{eq:Thres}
+\end{equation}
+When \eq{eq:Thres} holds, the candidate cannot be an optimal solution as its weighted rate $(\lambda R(x,y))$ exceeds the current minimum rate-constrained \gls{sad}. According to the increasing rate rule, the algorithm can terminate, as all subsequent candidates cannot be optimal solutions. 
+
+The $\text{SAD}(s,p,x,y)$ found in \eq{eq:CandidateElimination2} is not in \eq{eq:Thres}, since no assumption can be made about the \gls{sad} of subsequent candidates beyond the fact that they are greater than or equal to zero. A lower bound greater than zero would permit early termination. This is indeed what we propose now for $\mathbb{S}$. In \eq{eq:LowerBound}, we demonstrated that $\text{SAD}(\mathbb{S},0,x,y) \geqslant \lowersad$. Therefore, for $\mathbb{S}$, termination occurs when  
+\begin{equation}
+\small{
+R(x,y) \geqslant \frac{\text{SAD}(\mathbb{S},0,\hat{x},\hat{y}) - \lowersad}{\lambda} + R(\hat{x},\hat{y}) \:.
+}
+\label{eq:SThres}
+\end{equation}
+Per \eq{eq:LowerBound}, when \eq{eq:SThres} holds, the candidate cannot be an optimal solution, as its weighted rate $(\lambda R(x,y))$ added to the lower bound of the $\text{SAD}(\mathbb{S},0,x,y)$ exceeds the current minimum rate-constrained \gls{sad}. According to the increasing rate rule, the algorithm can terminate; all subsequent candidates cannot be optimal solutions, as they cannot have a \gls{sad} lower than $\lowersad$. The higher the value of $\lowersad$, the sooner the termination in \eq{eq:SThres} occurs, compared to \eq{eq:Thres}. 
+
+This improvement does not alter the optimal candidate chosen by the \gls{bma}. As shown in the next section, this constraint on the size of the search area considerably reduces the codomain of \gls{bm} over $\mathbb{S}$.
+
+
+%==============================================================
+\section{Experimental results}
+\label{sec:Results}
+\vspace{-0.5em}
+
+The test conditions and software configurations used in our experiments conform to the common test conditions and software reference configurations of the JCT-VC~\cite{Bossen2014}. The encoder software runs the main profile with $8$-bit coding and Low Delay P settings.
+
+The only changes to the standard configuration files are that enable full search, and the \gls{fen} and \gls{amp} are disabled. We disabled the latter only to simplify the implementation of the proposed methods, but \gls{amp} and \gls{rcsea} are compatible. All tests were performed on the first 100 frames of the sequences specified by Bossen~\cite{Bossen2014}, for classes: B $(1920 \times 1080)$, C $(832 \times 480)$, and D $(416 \times 240)$.
+
+\subsection{Comparison with HEVC HM Full Search}
+\label{sec:vsHM}
+\vspace{-0.5em}
+In the first part of \Cref{table:LDSummary}, we compare the \gls{sad} savings, the encoding time speedup and the \gls{bdpsnr}~\cite{Bjontegaard2001} of the unmodified HM reference encoder, version 16.6, against the proposed solution also implemented in version 16.6 of the HM reference encoder. The values shown are averaged from the results for \glspl{qp}: 22, 27, 32 and 37. The speedup is measured as the ratio between the encoding time of the unmodified HM reference software ($T_{\text{HM}}$) and the encoding time of the HM reference software with the proposed solution ($T_{\text{Proposed}}$):
+\begin{equation}
+\small{
+\text{SpeedUp} = \frac{T_{\text{HM}}}{T_{\text{Proposed}}}\:.
+}
+\end{equation}
+The \gls{sad} savings are measured as the relative difference between the number of \gls{sad} operations of the HM reference encoder ($\#\text{SAD}_{\text{HM}}$) and the number of \gls{sad} operations of the proposed solution ($\#\text{SAD}_{\text{Proposed}}$):
+\begin{equation}
+\small{
+\text{SAD Savings} = \frac{\#\text{SAD}_{\text{HM}} - \#\text{SAD}_{\text{Proposed}}}{\#\text{SAD}_{\text{HM}}}\:.
+}
+\end{equation}
+
+\begin{table*}[htb]
+\centering
+\small{
+\begin{tabular}{|c|l|r|r|r||r|r|r|}
+ \cline{3-8} \multicolumn{2}{c|}{} & \multicolumn{3}{c||}{\textbf{Prop. vs HM}} & \multicolumn{3}{c|}{\textbf{Prop. vs \cite{Trud14} (for HEVC)}} \\ \hline
+ Class & Sequence name  & \multicolumn{1}{c|}{Speedup} & \multicolumn{1}{c|}{SAD} & \multicolumn{1}{c||}{\gls{bdpsnr}} & \multicolumn{1}{c|}{Speedup} & \multicolumn{1}{c|}{SAD} & \multicolumn{1}{c|}{$\mathbb{S}$ SAD} \\
+ &  & \multicolumn{1}{c|}{} & \multicolumn{1}{c|}{Savings} & & \multicolumn{1}{c|}{} & \multicolumn{1}{c|}{Savings} & \multicolumn{1}{c|}{Savings} \\ \hline
+ \multicolumn{1}{|c|}{\multirow{5}{1.85cm}{\hfil\quad~B\\\hfil$(1920\times1080)$}}  & Kimono & 6.30 & 96.7\% & 0.0006 & 1.15  & 14.9\% & 45.6\% \\
+& ParkScene & 6.42 & 95.8\% & 0.0014 & 1.35 & 25.7\% & 79.4\% \\
+& Cactus & 7.07 & 96.3\% & 0.0018 & 1.27 & 21.8\% & 67.9\% \\
+& BQTerrace & 5.92 & 94.6\% & -0.0020 & 1.36 & 26.3\% & 81.9\% \\
+& BasketballDrive & 6.05 & 95.4\% & 0.0016 & 1.23 & 20.2\% & 64.0\% \\ \hline
+ \multicolumn{1}{|c|}{\multirow{4}{1.85cm}{\hfil\quad~C\\\hfil$(832\times480)$}}  & RaceHorses C & 4.73 & 92.7\% & 0.0011 & 1.13 & 14.8\% & 50.2\% \\
+& BQMall & 6.70 & 95.5\% & -0.0008 & 1.18 & 16.0\% & 53.1\% \\
+& PartyScene & 4.68 & 91.6\% & -0.0003 & 1.27 & 19.9\% & 66.2\% \\
+& BasketballDrill & 5.59 & 95.4\% & -0.0026 & 1.24 & 19.3\% & 61.0\%   \\ \hline
+ \multicolumn{1}{|c|}{\multirow{4}{1.85cm}{\hfil\quad~D\\\hfil$(416\times240)$}}  & RaceHorses & 4.56 & 93.0\% & -0.0030 & 1.15 & 12.9\% & 43.1\% \\
+& BQSquare & 8.75 & 96.1\%  & 0.0032 & 1.34 & 27.6\% & 90.4\% \\
+& BlowingBubbles & 6.78 & 95.2\%  & -0.0020  & 1.22 & 20.7\% & 68.1\% \\
+& BasketballPass & 6.18 & 95.4\%  & -0.0011 & 1.20 & 17.8\% & 56.9\% \\ \hline
+\multicolumn{1}{r|}{} & \textbf{Overall} & 6.13 & 94.9\% & 0.0002 & 1.23 & 19.8\% & 63.7\% \\  \cline{2-8}
+\end{tabular}
+}
+\vspace{-0.5em}
+\caption{\small{Comparison of the proposed solution with the HEVC HM reference encoder software (Prop. vs. HM; see \cref{sec:vsHM}). Comparison of the proposed solution with our previous work adapted to \gls{hevc} (Prop. vs. ~\cite{Trud14} (for HEVC); see \cref{sec:vsSEA}).}}
+\label{table:LDSummary}
+\vspace{-0.5em}
+\end{table*}
+
+The proposed solution, implemented with the \gls{rcsea} in the HM reference encoder, eliminates 94\% of \gls{sad} operations on average, and is approximately 6 times faster than the original HM encoder. We observed that the bit streams produced by the proposed solution and the unmodified HM software encoder are not identical. This is due to two factors: the ordering differences between same-cost candidates during \gls{me} and the ordering differences of same-cost partitioning shapes during the coding of the \gls{pu}. In other words, when multiple global minimums exist, either when choosing an \gls{mv} or when choosing a partitioning shape, both encoders might not pick the same one. That being said, as shown in \Cref{table:LDSummary}, the difference in \gls{bdpsnr} is negligible (less than 0.004~dB).
+
+\subsection{Comparison with \gls{rcsea}}
+\label{sec:vsSEA}
+\vspace{-0.5em}
+The second part of \Cref{table:LDSummary} shows the encoding time speedup, the total \gls{sad} operation savings, and the \gls{sad} operation savings for square \glspl{pu} for the contributions of this paper alone. We compare the proposed solution to our previous work~\cite{Trud14} adapted to \gls{hevc}, and implemented in version 16.6 of the HM reference encoder. We did not compare it to~\cite{Trud15}, as speedups would be biased, because of the time required to sort candidates by ascending \gls{ads}.
+
+Compared to our previous work adapted to \gls{hevc}, the proposed solution eliminates, on average, $19.8\%$ more \gls{sad} operations, which is directly attributable to the $63.7\%$ savings of square \gls{sad} operations, resulting in a speedup of approximately $1.23$. From \Cref{fig:CUShapes}, we see that a \gls{pu} requires 5 \gls{me} searches, one of which is square. It could be assumed, that square \gls{sad} operations account for one fifth of the total count of \gls{sad} operations. Thus, it could be expected that the \gls{sad} savings (column 7  of \Cref{table:LDSummary}) would represent at most one fifth of the total square \gls{sad} savings (column 8). That is however not the case, due to the fact that because of the early termination mechanism, the square \gls{sad} operation savings make up about one-third of the total count of \gls{sad} operations savings. 
+
+To elaborate, square blocks are twice the size of their rectangular counterparts. As a result, square \glspl{sad} are, more or less, twice as big as rectangular \glspl{sad}. From \eq{eq:Thres}, it therefore follows that early termination requires twice the rate. Because of exponential Golomb codes, doubling the rate exponentially increases the size of the search area. However, based on an assumption of spatial-temporal correlation, we can assume that doubling the rate also exponentially increases the efficiency of rate-constrained transitive elimination. From this, we can expect the number of \gls{sad} operations to double. Thus, the weighted ratio of square \gls{sad} operations is about one third of rectangular \glspl{sad} (a good approximation of the savings observed in \Cref{table:LDSummary}).
+
+\Cref{fig:SADSavingBar} shows that the square \gls{sad} operation savings increase when the \gls{qp} increases. This is in line with the findings of Coban and Mersereau~\cite{Coban1998} to the effect that an increase in the Lagrange multiplier has a direct impact on transitive elimination in a rate-constrained context. As demonstrated, this property still holds for the proposed solution.
+
+\begin{figure}[htb]
+  \centering
+  \input{figBarChart.tex}
+  \vspace{-2em}
+  \caption{\small{Percentage of square SAD operation savings, per sequence, for the proposed solution, when compared to our previous work~\cite{Trud14} adapted to \gls{hevc}}}
+  \label{fig:SADSavingBar}
+\end{figure}
+
+\section{Conclusion}
+\vspace{-0.5em}
+In this paper, we describe a technique for reusing motion estimation information from rectangular to square \glspl{pu}. Our experiments show that on average, when compared to the \gls{hevc} HM reference encoder software, the proposed solution reduces the number of \gls{sad} operations by $94.9\%$, resulting in a 6.13x speedup. For square partitions, this exceeds our previous work adapted to \gls{hevc} by an average of $63.7\%$, resulting in a 1.23x speedup.
+
+This work is not meant to be compared with suboptimal \gls{me} approaches. Our contribution resides in a reduction of the codomain of the \gls{me} function, while preserving the optimal candidate. Our work counteracts the increased domain of the \gls{me} function imposed by modern video encoding standards. We hope that this work can serve as the foundation for novel approaches to both optimal and suboptimal \gls{me}.
+
+%\printbibliography[heading=none]
+\bibliography{biblio}
+\bibliographystyle{IEEEbib}
+
+
+\end{document}
+
+
+%% Comments CD:
+%       By definition, $\lowersad \leqslant \minsad(\mathbb{S},0)$, and by using the highest lower bound, we have a tighter lower bound to the
+%       $\minsad(\mathbb{S},0)$.
+%       \CD{Mentionner que le max de 2 bornes inf est aussi une borne inf valide}
+%       LT: Ça me semble redondant... La plus grande borne inf est une borne inf...
+%
+%       As previously explained, the \gls{sea} filters out candidates, thus avoiding their computation. Hence, this information is not available for reuse.
+%       This circumvents approaches that would sum partition \glspl{sad} to instead of computing the \gls{sad} of $\mathbb{S}$.
+%       \CD{Manque de details...}
+%       LT: Done!
+%
+%       Let $B_{s,p}$ be the block of shape $s$ at partition $p$ in a \gls{cu}
+%       \CD{le concept de partition non defini}
+%       LT: Added partition numbers to fig1
+%
+%       Square \gls{sad} operations represent $\frac{1}{5}$
+%       \CD{20\% of... OU one fifth of}
+%       LT: one fifth
+%
+%       \CD{Table ou table ???}
+%       LT: table
+%
+%       Eq: Early Termination
+%       \CD{Definir x/y-chapeau}
+%       LT: Done!
+%
+%       Eq: Early termination
+%       \CD{Je ne comprends pas cette derniere inegalite...}
+%       LT: Rien de nouveau ici, il s'agit du critère d'arret. Je l'ai ajouté dans l'équation pour faciliter la compréhension.
+%
+%       The minimum can be anywhere inside this triangle.
+%       \CD{Mentionner que (0,0) est le predicteur ???}
+%
+%       Section 4
+%       \CD{Cette section n'est pas entierement claire a mon avis... La meilleure solution (initialement le predicteur) nous donne la diagonale superieure. Le predicteur nous donne le min R. Et le min SAD provient des sous-blocs...}
+%
+%       Conclusion 
+%       \CD{Personnellement, je ne terminerais pas l'article sur cette limitation...}
+%       LT: Ce n'est pas une limitation, c'est une ouverture.
+%
+%       We show that this optimization significantly reduces the number of SAD operations performed while preserving the  global minimum (\cref{sec:Results}).
+%       \CD{optimality of the solution ?}
+
+
+
+%% Comments SC:
+%       SC: Weird title
+%
+%       SC: Acronyms are defined in the abstract only if they are reused in the abstract. 
+%       LT: I also define SAD because of the popularity of the acronym.
+%
+%       SC: After the abstract, all acronym definitions are flushed are redone.
+%       LT: Yes, extra redundancy to help the reader.
+%
+%       SC: what term is better: shapes or sizes?
+%       LT: Size is misleading, this is about shape (square vs rectangular).
+%
+%   Not all coding decision are identical
+%       SC: decisions
+%       LT: Done!
+%
+%   To improve compression gains of motion compensation
+%       SC: motion prediction
+%       LT: No, I'm really talking about the motion compensation has a coding tool used by video coding standards.
+%
+%   In contrast, we can state that the \gls{sea} reduces the solution space.
+%       SC: I do not understand. solution space seems vague in this context.
+%       LT: Changed problem space to domain and solution space to codomain.
+%
+%       SC: is it because of SEA or because of the rate constraint that you reduce the solution space?
+%       LT: By eliminating candidates, the SEA reduces the codomain. This is independent from the rate constraint.
+%
+%   have been presented for H.264/\mbox{MPEG-4}
+%       SC: I think you should avoid to have the 4 separated from the MPEG, maybe with curly brackets...
+%       LT: Done!
+%
+%   To our knowledge, except for our previous work :\cite{Trud14, Trud15}, no work has been published so far on \gls{rcsea} for H.265/\gls{hevc}.
+%       SC: our previous work presented in [10] and [11], no work
+%       LT: Done!
+%
+%   the rate constraint can be used to constrain the radius of the search area, thus reducing the codomain to parts of the search area that satisfy the rate constraint.
+%       SC: satisfy
+%       LT: Done!
+%       SC: rate constraint. you use hypen when it is an adjective, e.g. reate-constraint algorithm.
+%       LT: Done!
+%
+%   we showed that the smallest codomain is obtained by sorting the candidate by \gls{ads} value.
+%       SC: candidates
+%       LT: Done!
+%
+%    by reusing information from previous \gls{me} operations for different partitioning shapes in the same \gls{pu}.
+%       SC: sizes? if size, adjust allover.
+%       LT: No, shape.
+%
+%   from previous partitioning shapes inside a \gls{pu}
+%       SC: can you be more specific? How the reuse is done. The information related to smaller partitions is reused in the processing of larger ones?
+%       LT: Added more details in intro
+%
+%   We improve the rate constraint to exploit this new information
+%       SC: rather vague. Can you be more specific?
+%       LT: Added more details
+%
+%   We experimentally confirm that this new optimization significantly reduces the number of
+%       SC: this doesn't sound like a contribution it itself.  But if you word it differently it could. e.g. We present a new motion estimation method/approach/algorithm that reduces...
+%       LT: Changed wording.
+%
+%   we start by introducing our notation
+%       SC: notations? if notation, notation for what? notations and use them...
+%       LT: removed.
+%
+%   transitive elimination phase of the \gls{sea}
+%       SC: SEA's transitive elimination phase
+%       LT: Done!
+%
+%   , vertical rectangle
+%       SC: a vertical Or you just say vertical rectangle (V) or horizontal
+%       LT: Done!
+%       SC: remove or add to vertical as well
+%       LT: Done!
+%
+%   it is $1$
+%       SC: has index
+%       LT: Done!
+%
+%   Let $C_{s,p,x,y}$ be the candidate at $(x,y)$
+%       SC: candidate block corresponding to MV (x,y)
+%       LT: Done!
+%
+%   in the search area related to $C_{s,p}$
+%       SC: This is not clear. what is Cs,p? it is not defined. Do you mean Ss,p = { (x,y) | (x,y) in SearchArea(Bs,p) } ?
+%       LT: C is defined in the previous sentence. I rewrote it to make this more obvious.
+%
+%   The function $R(x,y)$ returns
+%       SC: I would put this paragraph right after equation (2) and start with where R(x,y)...
+%       LT: done
+%
+%   to quickly measure the number of bits required to encode
+%       SC: estimate?
+%       LT: Done!
+%
+%   BM Equation
+%       SC: Is it Ss,p?
+%       LT: Yes.
+%
+%   This is achieved by exploiting the triangular inequality between the \gls{sad} and the \gls{ads}:
+%       SC: triangle
+%       LT: Done!
+%
+%   Conventional approaches evaluate \gls{pu} partitioning shapes
+%       SC: which? THe HM? Just give a reference.
+%       LT: Added reference.
+%
+%   well suited
+%       LT: well-suited
+%
+%   H,
+%       SC: H;
+%       LT: Done!
+%
+%   the
+%       SC: a
+%       LT: Done!
+%
+%   which are not available for reuse
+%       SC: therefore not
+%       LT: Done!
+%
+%   the \gls{sea} is the \gls{minsad} value:
+%       SC: minimum SAD value, denoted SAD*, and defined as:
+%       LT: Done!
+%
+%   MinSad equation
+%       SC: Ss,p
+%       LT: Done!
+%
+%   These inequality
+%       SC: inequalities
+%       LT: Done!
+%
+%   the lower bound of the $\minsad(\mathbb{S},0)$, such that
+%       SC: It is such that
+%       LT: Done!
+%
+%   Increasing rate equation
+%       SC: I don't get this one. Who says that at x,y the SAD is not much better than the optimal so far? Some steps or assumptions or words are missing.
+%       LT: This is the increasing rate equation. 
+%
+%   only to simplify implementation considerations
+%       SC: simplify the implementation of the proposed methods
+%       LT: Done!
+%
+%   table
+%       SC: Table change everywhere the case...
+%       LT: Done!
+%
+%   speed up
+%       SC: speed up or speedup, Please uniformize.
+%       LT: Done!
+%
+%   and is
+%       SC: and HM with our solution is ...  original HM encoder.
+%       LT: Rephrased it
+%
+%   an
+%       SC: the
+%       LT: Done!
+%
+%   RCSEA
+%       SC: Reference to make sure what method? 
+%       LT: Can't not published yet
+%
+%   table:LDSummary
+%       SC: Put 2 number after the point because this is too rough. You have just speed ups of 10%, 20%, etc. (the 1 is not a significative number)
+%
+%   This is related to early termination
+%       SC: Not so clear,
+%       LT: Rewrote it with more details, but this is hard to explain.
+%
+%   High movement sequences, like RaceHorses
+%       SC: Have you observed that? It is possible that a certain orientation will fit well and the other not but both being small is surprising or then it would mean that the square can fit well too.
+%       LT: I don't understand this comment.
+%
+%   Increased problem space
+%       SC: solution space?
+%       LT: changed problem space and solution space to domain and codomain
+%
+%   6x
+%       SC: Not italic
+%       LT: Done!
+%
+%%%%% SC REVIEW #2
+%
+%   Title
+%       SC: Reduced complexity motion estimation for HEVC reusing information from rectangular to square prediction units in SEA ?
+%       LT: Changed the suggested title a bit, but it's the same concept.
+%
+%   constrain the radius of the search area 
+%       SC: Do we need the term radius since anyway the shape is a star and not a circle? I think that saying the following should be enough:  to reduce the search area ... 
+%       LT: Done!
+%
+%   RCSEA
+%       SC: The RCSEA
+%       LT: Done!
+%
+%   mot
+%       SC: not
+%       LT: Done!
+%
+%   issues
+%       SC: caused by the non unique ordering of solutions when multiple optimal solutions exist    OU      caused by the non unique choice of the solution when multiple optimal solutions exist --- This is not an issue per se...
+%       LT: Rephrased it.
+%
+%   motion compensation
+%       SC: Motion compensation is not a compression technique like arithmetic coding, predictive coding, etc. Therefore I have a problem to associate coding gains to motion compensation. The use of motion prediction is kind of a stretch but at least refers to predictive coding.
+%       LT: Let's use predictive coding
+%
+%   the domain of the motion estimation function
+%       SC: Pour moi c'était plus clair de parler d'espace de solutions. le terme domain ici n'est pas clair pour moi puisque le problème n'est pas mathématiquement décrit. On peut juste le deviner. De plus les entrées du système ne sont pas des 'ME functions' mais des prediction error value... Je conseille d'expliquer brièvement le problème ainsi que le domain et codomain. ainsi que la fonction qui les relie... Sinon il y a un grand risque que les reviewers ne comprendront  pas  ces abstractions et ça va pénaliser l'article. In mathematics, and more specifically in naive set theory, the domain of definition (or simply the domain) of a function is the set of "input" or argument values for which the function is defined. That is, the function provides an "output" or value for each member of the domain.
+%       LT: J'ai ajouté les explications.
+%
+%   codomain
+%       SC: you have to define it clearly. It is not super clear what you mean by the domain, the codomain in the context of your problem. Yes people can guess but if they guess wrong it will affect their evaluation.
+%       LT: J'ai ajouté les explications
+%
+%   the rate constraint can be used to constrain the radius of the search area
+%       SC: see previous comment
+%       LT: Done!
+%
+%   eq 4.
+%       SC: = J(x,y) ?
+%       LT: Not enough room, and I don't really use J(s,p,x,y)
+%
+%   square
+%       SC: put 'a square'  here and in the figure caption.
+%       LT: Done!
+%
+%   figure
+%       SC: Figure (capital F, for all figures), or Fig.
+%       LT: Done!
+%
+%   Block matching equation
+%       SC: kind of a stretch... BM is not the optimal MV but a process. I suggest: BM consists in finding the optimal motion vector as follows: MV*(s,p) = argmin...
+%       LT: I removed it, since it did not add any value
+%
+%   computed
+%       SC: of already computed?
+%       LT: Done!
+%
+%   constant search area
+%       SC: should we define that? Not obvious to any reader. It seems important since you mention it twice...
+%       LT: It's defined right after S_{v,0} = S_{v,1}...
+%
+%   eq SAD OMEGA
+%       SC: mettre une virgule juste après la fermeture de parenthèse avant le 'pour tout'
+%       LT: Done!
+%
+%   A RCSEA
+%       SC: An RCSEA because you would pronounce it "an ARRR CSE'
+%       LT: Done!
+%
+%   when
+%       SC: when (from Eq. (4))
+%       LT: I rephrased it.
+%
+%   eq:Thres
+%       SC: I do not see this in any ICIP paper you have published.
+%       LT: Its in the pseudo-code, but in another form.
+%
+%   SAD(s,p,x,y)
+%       SC: SAD(s,0,x,y) the 0 is important
+%       LT: SAD(S,0,x,y) the S is also important :)
+%
+%   Section 4
+%       SC: It's not super obvious for someone not used with the math gymnastic you do everyday. Equation (11) comes from nowhere. Maybe the following flow of ideas for section 4:
+% 
+
+%       SC: Adding the rate term to (10), we have SADOMEGA + L*R(x,y) <= SAD*(S,0) + L*R(x,y) <=  J(x,y)  for all (x,y)   (lets call it (11)) (you may put that right under (10) if you like.
+%       LT: Adding the rate term to (10) will really confuse people. I don't think that's the way to go.
+%       LT: 11 is not based on 10. I rephrased it, to make this more obvious.
+%
+%       SC: ... The increasing rate rule of [10] evaluates MV candidates following an order such that: R(xi,yi) >= R(xi-1,yi-1)     for all i   (12)
+%       LT: I don't think we need an equation for the ordering. Just stating ordered by increasing rate (R(x,y)) seems enough,
+%
+%       SC: We can stop searching (early terminate) at the first i value for which we have: SADOMEGA + L*R(xi,yi) >= SAD(s,0,x^,y^) + L*R(x^,y^)      (13) --> R(xi,yi) = (SAD(s,0,x^,y^) - SADOMEGA )/L + R(x^,y^) where (x^,y^) is the current best motion vector among the i-1 already evaluated MV candidates.  Indeed, if (13) holds for a value i then, from (11) and (12), the following holds for all (j >= i): J(xj,yj) >= SADOMEGA + L*R(xj,yj) >= SAD(s,0,x^,y^) + L*R(x^,y^)  
+%       LT: I don't like using the equality between R and the early termination value since if the early termination value can be odd, and R is always even.
+%       LT: I've chosen to express the equations with a rate term alone and not weighted. To me this makes it easier to understand, since we are talking about increasing rate and early termination. In this form it's really obvious that the termination happens at some rate.
+%
+%       SC: Maybe for increased clarity, (10) and (11) should be written in the order: J(x,y) >= SAD*(S,0) + L*R(x,y) >= SADOMEGA + L*R(x,y) Because the condition on R(x,y) is >=
+%       LT: 10 and 11 (in your version), cannot be compared. In your version 12 uses 10, not 11.
+%       LT: I reworked this section, I tried to make things more obvious, let me know what you think. What I'm trying to do, is a before-and-after style text.
+%
+%   this constraint on the radius
+%       SC: radius?
+%       LT: I changed it to size. This is another reason why I like my equations. They show that the early termination translate into a constraint on the size of the search area.
+%
+%   conclude
+%       SC: See?   Its not something complex to determine..
+%       LT: Done!
+%
+%%%%%%%%%%%%%%%%%%%% SC REVIEW 3
+%
+%   the rate constraint can shorten
+%   \SC{reduce or shrink? (I don't like the term shorten because if give a 1D impression while area is 2D)}
+%   LT: Shrink!
+%
+%   be the partitioning shape of a \gls{pu},
+%   \SC{shape singular because we are talking about $s$ and $s$ is alone}
+%   LT: ok
+%
+%   since such an ordering can allow for the reuse of already computed values.
+%   \SC{allows? or can allow?}
+%   LT: we can put allows and see what English guy will say.
+%
+%   This also applies for $\mathbb{H}$; one can sum the previously computed \glspl{sad} of both rectangular partitions at a given position to obtain the \gls{sad} of the square \gls{pu} at that position.
+%   \SC{there are two partitions so not at that partition...}
+%
+%    It follows from \eq{eq:CandidateElimination2} and since $\text{SAD}(s,p,x,y)\geqslant 0$, that early termination can occur when
+%   \SC{I put can occur because the early termination criterion is not unique}
+%   LT: Not sure I understand. The value is not unique that's why there's \geqslant. Any "can occur" does not bother me. What I want to say here is that using the increasing rate rule, the first candidates that satisfies this inequality the algorithm can terminate.
+%
+%   This is indeed what we propose now for $\mathbb{S}$.
+%   \SC{I don't like so much the previous sentence that I composed. It could be said better}
+%   LT: Reworked the sentence.
+%
+%   By the increasing rate rule, the algorithm can terminate; all subsequent candidates cannot be optimal solutions, as they cannot have a \gls{sad} lower than $\lowersad$.
+%   \SC{I think a lot of the content of this paragraph is redundant in light of the second paragraph}
+%   LT: The sentences are similar, but they don't explain the same thing.
+%
+%   The \gls{sad} savings are measured as the difference between the number of \gls{sad} operations of the HM reference encoder ($\#\text{SAD}_{\text{HM}}$) and the number of \gls{sad} operations of the proposed solution ($\#\text{SAD}_{\text{Proposed}}$) over the number of \gls{sad} operations of the HM reference encoder:
+%   \SC{if you will give the equation anyway, you can save a bit of space and just need to say that : The \gls{sad} savings are measured as the relative difference between the number of \gls{sad} operations of the HM reference encoder ($\#\text{SAD}_{\text{HM}}$) and the number of \gls{sad} operations of the proposed solution ($\#\text{SAD}_{\text{Proposed}}$):}
+%   LT: Done!
+%
+%   The results in the first part of \Cref{table:LDSummary} illustrate the performance of the proposed solution versus HM. 
+%   \SC{is the previous sentence really needed?}
+%   LT: Removed!
+%
+%   making it approximately $23\%$ faster.
+%   \SC{making what 23\% faster? I see the 19.8\% faster in the table and the 63.7\% but not the 23??}
+%   LT: I will replace it with "the proposed solution". The 23\% is in the table the column just before 19.8.
+%
+%   However, under the assumption that doubling the rate also exponentially increases the efficiency of rate-constrained transitive elimination (see \eq{eq:CandidateElimination2}),
+%   \SC{(3) doesn't show any exponental behaviour although I see the exponential rate because of Golomb code structure.}
+%   LT: "(3) doesn't show any exponental behaviour" This is why you have to assume it. But it make sense the bigger the search area, the more unlikely good candidates are (based on the assumption of spatial-temporal correlation).
+%
+% JF, REZA and ESMAEL review
+%   REZA: Add HM version in abstract
+%   LT: Too much details for abstract. HM version is given later.
+%
+%   ESMAEL: say unchanged instead of 0.0002 dB.
+%   LT: Unchange is not accurate, we will use 0.0002 dB.
+%
+%   REZA: Works
+%   LT: Done!
+%
+%   ESMAEL: Maybe mention that calculation of ADS can be done more efficiently than  SAD. I mean it is not obvious that it is better ( it has 2 ABS and 1 Sum why should it be better than 1 ABS and 1 Sum?) unless you mention that it can be calculated by methods that reuse values.
+%   LT: We already have that later in the same paragraph.
+%
+%   REZA: I think the experiments are results of the ideas and contributions and there is no need to mention them separately as contributions
+%   LT: Done!
+%
+%   ESMAEL: You can also use existing Partition Modes ( 2Nx2N is S , ...)
+%   LT: For the equations coming up these symbols will simplify things, compared to 2Nx2N. The thing is the S is 2Nx2N and NxN. To save space I would prefer not explaining this.
+%
+%   JFF: utiliser acronyme mv?
+%   LT: Done!
+%
+%   JFF: Uniformiser le terme ? Dans le texte, on trouve le terme H.265, H.265/HEVC, HEVC
+%   LT: On va l'introduire la première fois avec le long nom et après juste dire HEVC
+%
+%   JFF: Jusqu'à maintenant, on parlait du SEA. Le reste de la section porte maintenant sur le RCSEA peut être le mentionner explicitement?
+%   LT: Done!
+%
+%   JFF: Je trouve cela un peu mêlant que le terme "candidate" fait référence par moment au mv candidate et à d'autres moments, au block candidate (le $C_{s,p,x,y}$). Aussi, pas clair que R(x,y) dépend du mvp. Enfin, on devrait pas plutôt dire : $(\hat{x},\hat{y})$ is the current best candidate ?
+%   LT: Le candidat fait référence au block, comme c'est la cas dans C_{s,p,x,y}$. Le vecteur de mouvement, pointe la position du candidat dans la surface du recherche.
+%
+%   REZA: here you can mention both V --> H --> S and H --> V --> S as substitutes  for the conventional approach
+%   LT: Done!
+%
+%   JFF: Il manque un mot de transition à mon avis, comme "but"
+%   LT: non.
+%
+%   JFF:Le SEA n'affecte pas le SAD*, mais le RCSEA, oui (dans le sens qu'il ne permet pas toujours de trouver le plus petit SAD).
+%   LT: Dans certains cas, le RCSEA peut empêcher de trouver SAD*. Je veux traiter cela plus dans l'article de Journal. Il y a une certaine valeur du SAD(x^,y^) où il se peut que SAD* ne soit pas trouvé. Ceci repose sur l'hypothèse que SAD(x,y) >= 0. 
+%
+%   JFF: Ce n'était pas clair pour moi à la première lecture. Ce qui rend invalide l'équation 5 dans un contexte RCSEA, ou du moins, non applicable. Similairement, les autres équations semblent non applicables dans un contexte RCSEA, en particulier l'équation 9.
+%   LT: Les formules sont applicables, c'est juste que pour des petites valeurs de SAD, il est possible de ne pas trouver SAD*. Cela dit, pour que ls SAD* carré soit plus petit que deux SAD rectangulaires est théoriquement possible, mais très rare. Vu la complexité de cette explication, je préfère la garder pour l'article de journal, Il s'agit d'un cas très rare, qui risque d'avoir peu ou pas d'impact vue qu'on parle de cas ou le SAD est petit. S'il y aurait un impact, il serait visible dans les simulations.
+%
+%   JFF: À moins que vous appliquez réelement l'équation 5, c'est-à-dire, que vous effectuez une recherche exhaustive sur la région de recherche ?
+%   LT: Le problème se pose juste pour les petites valeurs de SAD.
+%
+%   JFF: Et même à cela, la zone de recherche est supposée être différente selon le mvp ?}
+%   LT: voir constant search area assumption (après eq. 5)
+%
+%   JFF: Encore une fois, la phrase précédente donne l'impression que le rate dépend seulement du MV et non du MVD.
+%   LT: Ajouté dans la section 2
+%
+%   JFF: Pour moi, l'équation 9 s'applique seulement dans un contexte SEA, non ?
+%   LT: 9 s'applique tout le temps, sauf que dans un context RC, lorsque les valeurs de SAD sont petites, il se peut que SAD* ne soit pas trouvé a cause de la contrainte de débit.
+%   
+%   JFF: Vous ne l'avez pas démontré dans un contexte RC-SEA. 
+%   LT: Je prévoit cette démonstration pour l'article de journal
+%
+%   JFF: Enfin, je veux dire si votre SAD* correspond au plus petit SAD trouvé durant l'application du RC-SEA et non proprement à celui de l'équation 5 ?
+%   LT: Plus précisément, par définition, SAD* est toujours le min. Cependant, celui que l'ont trouve peu ne pas être SAD* si SAD(x^,y^) est petit.
+%
+%   JFF: utiliser acronyme pour QP, QP est définit plus loin dans le texte...
+%   LT: Done!
+%
+%   REZA: Is this common for the other state-of-the-art? they use the same configuration?
+%   LT: No one else uses HEVC and SEA. So I can't answer
+%
+%   JFF: RC-SEA est compatible avec AMP? Ou AMP et SEA sont compatibles avec les méthodes que vous proposez? 
+%   LT: RC-SEA est compatible avec AMP
+%
+%   ESMAEL: needs more clarification
+%   LT: Any suggestions?
+%
+%   ESMAEL: What is the SearchRange? is it 64 default value, if so just ignore this comment.
+%   LT: Standard recommendation is 64.
+%
+%   ESMAEL: Maybe even better speedup can achieved if they are enabled
+%   LT: Yes, but that can be the topic of another paper :)
+%
+%   ESMAEL: I think you could also use N instead of #
+%   LT: Let's stay with #. I've seen this in other papers.
+%
+%   JFF: Vous avez validez que les différences entre notre approche et la HM de base sont seulement explicables par ces deux facteurs ?
+%   LT: Il s'agit des deux que j'ai observé. Si celui que tu as mentionné plus tôt se produit, l'impact est très petit.
+%
+%   JFF: Même BD-PSNR pour votre approche [10] par rapport à votre nouvelle approche? Si ce n'est pas le cas, pourquoi ?
+%   LT: Non ce n'est pas le même BD-PSNR. La raison pourquoi le BD-PSNR est utiliser est juste pour montrer qu'il n'y a pas d'impact sur l'encodage.
+%
+%   JFF: Dans la figure 2, "RaceHorses C" ?
+%   LT: Oui c'est le nom utilisé pour la version classe C de RaceHorses.
+%
+%   JFF: manque le x, pourquoi lui est sous format mathématique et le 6.13x sous format textuel ? Uniformisez
+%   LT: Done!
+%
+%   REZA: Any comparison with state-of-the-art (other researchers)?
+%   LT: We are the only ones doing this for HEVC.
+%
+%   JFF: Référence 11, une barre (-----) à la place de vos noms ?
+%   LT: Je pense que bibLatex fait ça à cause qu'il s'agit des même auteurs que la référence précédente.
